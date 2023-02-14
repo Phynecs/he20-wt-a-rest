@@ -39,8 +39,15 @@ app.post('/', function (req, res) {
 
 //PUT /{id} Überschreibt die bestehende Person mit den Daten, die im Request Body mitgeschickt werden.
 app.put('/:id', (req, res) => {
-
-    res.send("Put Request Called")
+    const id = req.params.id;
+    let personNew = new Person(uuidv4(), req.body.name, req.body.nachname, req.body.email)
+    const person = persons.find((p) => p.id === id)
+    if (person) {
+        let index = persons.indexOf(person)
+        persons.splice(index, 1)
+    }
+    persons.push(personNew)
+    res.send(personNew)
 })
 
 //PATCH /{id} Überschreibt nur die Eigenschaften einer Person, die im Request Body übermittelt werden.
