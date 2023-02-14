@@ -1,29 +1,29 @@
 import express from 'express'
-import { v4 as uuidv4 } from 'uuid';
-import Person from "./Person.js";
+import { Person, PersonModel } from "./Person.js";
 import bodyParser from "body-parser";
+import mongoose from "mongoose";
 
 const app = express();
 const port = 3000;
 
-let persons = []
-
-// Test zwecke - wehe eper loescht das..
-let person = new Person(uuidv4(), "foo", "bar", "foo.bar@hf-ict.ch")
-
+await mongoose.connect('mongodb://127.0.0.1:27017/test');
 app.use(bodyParser.json())
 
-persons.push(person)
 
 //GET / Gibt ein Array mit allen gespeicherten Personen aus.
-app.get('/', function(req, res) {
-    res.send(persons);
+app.get('/', async function (req, res) {
+    // find all documents
+    let mongoPersons = await PersonModel.find({})
+    console.log(mongoPersons.all)
+    res.send(mongoPersons);
 });
 
 //GET /{id} Gibt explizit die Person mit der gesuchten ID aus. Wenn nicht vorhanden wir ein HTTP 404-Fehler zurückgegeben.
-app.get('/:id', function(req, res) {
+app.get('/:id', async function (req, res) {
     const id = req.params.id;
-    const person = persons.find((p) => p.id === id);
+
+    const person = await PersonModel.findById(id)
+
     if (person) {
         res.send(person);
     }
@@ -32,47 +32,49 @@ app.get('/:id', function(req, res) {
 
 //POST / Speichert eine Person, die via Request Body mitgesendet wird.
 app.post('/', function (req, res) {
-    let person = new Person(uuidv4(), req.body.name, req.body.nachname, req.body.email);
-    persons.push(person)
-    res.status(201).send(person);
+    let person = new Person(req.body.name, req.body.nachname, req.body.email);
+    let instance = new PersonModel(person);
+
+    instance.save(function (err) {
+        console.log(err)
+    });
+    res.status(201).send(instance);
 });
 
 //PUT /{id} Überschreibt die bestehende Person mit den Daten, die im Request Body mitgeschickt werden.
-app.put('/:id', (req, res) => {
+app.put('/:id', async (req, res) => {
     const id = req.params.id;
-    let personNew = new Person(uuidv4(), req.body.name, req.body.nachname, req.body.email)
-    const person = persons.find((p) => p.id === id)
-    if (person) {
-        let index = persons.indexOf(person)
-        persons.splice(index, 1)
-    }
-    persons.push(personNew)
-    res.send(personNew)
+    let person = new Person(req.body.name, req.body.nachname, req.body.email)
+    let instance = await PersonModel.findOneAndReplace({ _id: id}, person, {
+        returnOriginal: false
+    })
+
+    res.send(instance)
 })
 
 //PATCH /{id} Überschreibt nur die Eigenschaften einer Person, die im Request Body übermittelt werden.
-app.patch('/:id', (req, res) => {
+app.patch('/:id', async (req, res) => {
     const id = req.params.id;
-    const person = persons.find((p) => p.id === id);
-    if (person) {
-        const data = req.body;
-        for (let key in data) {
-            person[key] = data[key];
-        }
-        res.send(person);
+    try {
+        let instance = await PersonModel.findByIdAndUpdate(id, req.body, {
+            returnOriginal: false
+        });
+        res.send(instance)
+    } catch (err) {
+        res.status(404).send()
     }
-    res.status(404).send();
 })
 
 //DELETE /{id} Löscht die entsprechende Person.
 app.delete('/:id', (req, res) => {
     const id = req.params.id;
-    const personIdx = persons.findIndex((p) => p.id === id);
-    if (personIdx > -1) {
-        persons.splice(personIdx, 1);
-        res.status(204).send();
-    }
-    res.status(404).send();
+    PersonModel.findByIdAndDelete({_id: id}, function (err, docs) {
+        if (err){
+            res.status(404).send();
+        } else {
+            res.status(204).send();
+        }
+    })
 })
 
 
